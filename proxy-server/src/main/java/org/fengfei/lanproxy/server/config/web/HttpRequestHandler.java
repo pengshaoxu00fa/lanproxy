@@ -2,8 +2,11 @@ package org.fengfei.lanproxy.server.config.web;
 
 import java.io.File;
 import java.io.RandomAccessFile;
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.Charset;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.fengfei.lanproxy.common.JsonUtil;
 
@@ -29,8 +32,7 @@ import io.netty.handler.stream.ChunkedNioFile;
 
 public class HttpRequestHandler extends SimpleChannelInboundHandler<FullHttpRequest> {
 
-    private static final String PAGE_FOLDER = System.getProperty("app.home", System.getProperty("user.dir"))
-            + "/webpages";
+    private static final String PAGE_FOLDER = "proxy-server/webpages";
 
     private static final String SERVER_VS = "LPS-0.1";
 
@@ -42,8 +44,15 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<FullHttpRequ
             outputPages(ctx, request);
             return;
         }
+        Map<String, String> params = new HashMap<>();
+        try {
+            params.put("server_ip", ((InetSocketAddress)(ctx.channel().localAddress())).getAddress().getHostAddress());
+            params.put("client_ip", ((InetSocketAddress)(ctx.channel().remoteAddress())).getAddress().getHostAddress());
+        } catch (Exception e){
+            e.printStackTrace();
+        }
 
-        ResponseInfo responseInfo = ApiRoute.run(request);
+        ResponseInfo responseInfo = ApiRoute.run(request, params);
 
         // 错误码规则：除100取整为http状态码
         outputContent(ctx, request, responseInfo.getCode() / 100, JsonUtil.object2json(responseInfo),
@@ -76,6 +85,7 @@ public class HttpRequestHandler extends SimpleChannelInboundHandler<FullHttpRequ
         HttpResponseStatus status = HttpResponseStatus.OK;
         URI uri = new URI(request.getUri());
         String uriPath = uri.getPath();
+
         if (uriPath.contains("../")) {
             status = HttpResponseStatus.FORBIDDEN;
             outputContent(ctx, request, status.code(), status.toString(), "text/html");

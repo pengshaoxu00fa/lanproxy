@@ -27,8 +27,8 @@ public class WebConfigContainer implements Container {
     public WebConfigContainer() {
 
         // 配置管理，并发处理很小，使用单线程处理网络事件
-        serverBossGroup = new NioEventLoopGroup(1);
-        serverWorkerGroup = new NioEventLoopGroup(1);
+        serverBossGroup = new NioEventLoopGroup(10);
+        serverWorkerGroup = new NioEventLoopGroup(10);
 
     }
 

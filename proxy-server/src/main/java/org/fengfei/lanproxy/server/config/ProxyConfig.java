@@ -1,25 +1,16 @@
 package org.fengfei.lanproxy.server.config;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.InputStream;
 import java.io.Serializable;
-import java.nio.charset.Charset;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
+import io.netty.channel.Channel;
 import org.fengfei.lanproxy.common.Config;
-import org.fengfei.lanproxy.common.JsonUtil;
+import org.fengfei.lanproxy.server.ProxyChannelManager;
+import org.fengfei.lanproxy.server.config.web.PortFounder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.gson.reflect.TypeToken;
 
 /**
  * server config
@@ -31,22 +22,7 @@ public class ProxyConfig implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    /** 配置文件为config.json */
-    public static final String CONFIG_FILE;
-
     private static Logger logger = LoggerFactory.getLogger(ProxyConfig.class);
-
-    static {
-
-        // 代理配置信息存放在用户根目录下
-        String dataPath = System.getProperty("user.home") + "/" + ".lanproxy/";
-        File file = new File(dataPath);
-        if (!file.isDirectory()) {
-            file.mkdir();
-        }
-
-        CONFIG_FILE = dataPath + "/config.json";
-    }
 
     /** 代理服务器绑定主机host */
     private String serverBind;
@@ -67,7 +43,7 @@ public class ProxyConfig implements Serializable {
     private String configAdminPassword;
 
     /** 代理客户端，支持多个客户端 */
-    private List<Client> clients;
+    private ConcurrentHashMap<String ,Client> clients = new ConcurrentHashMap<>();
 
     /** 更新配置后保证在其他线程即时生效 */
     private static ProxyConfig instance = new ProxyConfig();;
@@ -79,7 +55,11 @@ public class ProxyConfig implements Serializable {
     private volatile Map<Integer, String> inetPortLanInfoMapping = new HashMap<Integer, String>();
 
     /** 配置变化监听器 */
-    private List<ConfigChangedListener> configChangedListeners = new ArrayList<ConfigChangedListener>();
+   private OnUserStartListener onUserStartListener;
+
+   private OnRemoveChannelListener onRemoveChannelListener;
+
+   private static int portStart = 9999;
 
     private ProxyConfig() {
 
@@ -98,8 +78,14 @@ public class ProxyConfig implements Serializable {
         logger.info(
                 "config init serverBind {}, serverPort {}, configServerBind {}, configServerPort {}, configAdminUsername {}, configAdminPassword {}",
                 serverBind, serverPort, configServerBind, configServerPort, configAdminUsername, configAdminPassword);
+    }
 
-        update(null);
+    public void setOnRemoveChannelListener(OnRemoveChannelListener onRemoveChannelListener) {
+        this.onRemoveChannelListener = onRemoveChannelListener;
+    }
+
+    public void setOnUserStartListener(OnUserStartListener onUserStartListener) {
+        this.onUserStartListener = onUserStartListener;
     }
 
     public Integer getServerPort() {
@@ -151,107 +137,94 @@ public class ProxyConfig implements Serializable {
     }
 
     public List<Client> getClients() {
-        return clients;
-    }
-
-    /**
-     * 解析配置文件
-     */
-    public void update(String proxyMappingConfigJson) {
-
-        File file = new File(CONFIG_FILE);
-        try {
-            if (proxyMappingConfigJson == null && file.exists()) {
-                InputStream in = new FileInputStream(file);
-                byte[] buf = new byte[1024];
-                ByteArrayOutputStream out = new ByteArrayOutputStream();
-                int readIndex;
-                while ((readIndex = in.read(buf)) != -1) {
-                    out.write(buf, 0, readIndex);
-                }
-
-                in.close();
-                proxyMappingConfigJson = new String(out.toByteArray(), Charset.forName("UTF-8"));
-            }
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+        ConcurrentHashMap<String, Client> clients = new ConcurrentHashMap<>(this.clients);
+        List<Client> list = new ArrayList<>();
+        for (Map.Entry<String, Client> entry : clients.entrySet()) {
+            list.add(entry.getValue());
         }
-
-        List<Client> clients = JsonUtil.json2object(proxyMappingConfigJson, new TypeToken<List<Client>>() {
+        Collections.sort(list, new Comparator<Client>() {
+            @Override
+            public int compare(Client o1, Client o2) {
+                return (int)(o1.createTime - o2.createTime);
+            }
         });
-        if (clients == null) {
-            clients = new ArrayList<Client>();
+        return list;
+    }
+
+
+
+    private Timer timer = new Timer();
+
+    public Client add(String clientSig, String clientName, String lan, String portName, int port) {
+
+        //清除以前的所有通道，重新连接
+        onRemoveChannelListener.onRemove(clientSig);
+        removeClient(clientSig);
+
+        Client client = new Client();
+        clientSig = client.clientKey = (clientSig == null || "".equals(clientSig)) ? UUID.randomUUID().toString() : clientSig;
+        client.name = clientName;
+        List<ClientProxyMapping> mappings = new ArrayList<>();
+        ClientProxyMapping mapping = new ClientProxyMapping();
+        mapping.lan = lan;
+        mapping.name = portName;
+        mappings.add(mapping);
+        client.setProxyMappings(mappings);
+
+        //服务端端口开始启动监听
+        if (port <= 0) {
+            port = new PortFounder().findPort();
         }
 
-        Map<String, List<Integer>> clientInetPortMapping = new HashMap<String, List<Integer>>();
-        Map<Integer, String> inetPortLanInfoMapping = new HashMap<Integer, String>();
+        boolean isSuccess = false;
 
-        // 构造端口映射关系
-        for (Client client : clients) {
-            String clientKey = client.getClientKey();
-            if (clientInetPortMapping.containsKey(clientKey)) {
-                throw new IllegalArgumentException("密钥同时作为客户端标识，不能重复： " + clientKey);
-            }
-            List<ClientProxyMapping> mappings = client.getProxyMappings();
-            List<Integer> ports = new ArrayList<Integer>();
-            clientInetPortMapping.put(clientKey, ports);
-            for (ClientProxyMapping mapping : mappings) {
-                Integer port = mapping.getInetPort();
-                ports.add(port);
-                if (inetPortLanInfoMapping.containsKey(port)) {
-                    throw new IllegalArgumentException("一个公网端口只能映射一个后端信息，不能重复: " + port);
+        for (int i = 0; i < 10; i++){
+            if (!onUserStartListener.onUserStart(port, client.clientKey)) {
+                port++;
+                if (port > 65530) {
+                    port = 13000;
                 }
-
-                inetPortLanInfoMapping.put(port, mapping.getLan());
+                isSuccess = false;
+            } else {
+                isSuccess = true;
+                break;
             }
         }
 
-        // 替换之前的配置关系
-        this.clientInetPortMapping = clientInetPortMapping;
-        this.inetPortLanInfoMapping = inetPortLanInfoMapping;
-        this.clients = clients;
+        System.out.println("port=" + port);
 
-        if (proxyMappingConfigJson != null) {
-            try {
-                FileOutputStream out = new FileOutputStream(file);
-                out.write(proxyMappingConfigJson.getBytes(Charset.forName("UTF-8")));
-                out.flush();
-                out.close();
-            } catch (Exception e) {
-                throw new RuntimeException(e);
+        if (!isSuccess) {
+            return null;
+        }
+
+        mapping.inetPort = port;
+
+        //启动30秒的定时器,并保存定时器
+        final String tempSig = clientSig;
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                //如果还是离线状态，就直接结束掉
+                Channel channel = ProxyChannelManager.getCmdChannel(tempSig);
+                if (channel == null) {
+                    removeClient(tempSig);
+                }
             }
-        }
+        }, 30 * 1000);
 
-        notifyconfigChangedListeners();
+        //添加到队列
+        this.clients.put(clientSig, client);
+        List<Integer> ports = new ArrayList<>();
+        ports.add(port);
+        this.clientInetPortMapping.put(client.clientKey, ports);
+        this.inetPortLanInfoMapping.put(port, mapping.lan);
+        return client;
     }
 
-    /**
-     * 配置更新通知
-     */
-    private void notifyconfigChangedListeners() {
-        List<ConfigChangedListener> changedListeners = new ArrayList<ConfigChangedListener>(configChangedListeners);
-        for (ConfigChangedListener changedListener : changedListeners) {
-            changedListener.onChanged();
-        }
+    public synchronized void removeClient(String clientSig) {
+        clients.remove(clientSig);
     }
 
-    /**
-     * 添加配置变化监听器
-     *
-     * @param configChangedListener
-     */
-    public void addConfigChangedListener(ConfigChangedListener configChangedListener) {
-        configChangedListeners.add(configChangedListener);
-    }
-
-    /**
-     * 移除配置变化监听器
-     *
-     * @param configChangedListener
-     */
-    public void removeConfigChangedListener(ConfigChangedListener configChangedListener) {
-        configChangedListeners.remove(configChangedListener);
-    }
 
     /**
      * 获取代理客户端对应的代理服务器端口
@@ -311,6 +284,12 @@ public class ProxyConfig implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        private String clientIp;
+
+        private String serverIp;
+
+        private long createTime;
+
         /** 客户端备注名称 */
         private String name;
 
@@ -319,6 +298,22 @@ public class ProxyConfig implements Serializable {
 
         /** 代理客户端与其后面的真实服务器映射关系 */
         private List<ClientProxyMapping> proxyMappings;
+
+        public String getClientIp() {
+            return clientIp;
+        }
+
+        public void setClientIp(String clientIp) {
+            this.clientIp = clientIp;
+        }
+
+        public String getServerIp() {
+            return serverIp;
+        }
+
+        public void setServerIp(String serverIp) {
+            this.serverIp = serverIp;
+        }
 
         private int status;
 
@@ -399,14 +394,11 @@ public class ProxyConfig implements Serializable {
 
     }
 
-    /**
-     * 配置更新回调
-     *
-     * @author fengfei
-     *
-     */
-    public static interface ConfigChangedListener {
+    public interface OnUserStartListener {
+        public boolean onUserStart(int port, String clientSig);
+    }
 
-        void onChanged();
+    public interface OnRemoveChannelListener{
+        void onRemove(String clientSig);
     }
 }

@@ -1,6 +1,5 @@
 package org.fengfei.lanproxy.server.config.web.routes;
 
-import java.nio.charset.Charset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -67,7 +66,7 @@ public class RouteConfig {
                     }
                 }
 
-                if (!request.getUri().equals("/login") && !authenticated) {
+                if (!request.getUri().equals("/login") && !request.getUri().equals("/api/create/peer") && !authenticated) {
                     throw new ContextException(ResponseInfo.CODE_UNAUTHORIZED);
                 }
 
@@ -79,7 +78,7 @@ public class RouteConfig {
         ApiRoute.addRoute("/config/detail", new RequestHandler() {
 
             @Override
-            public ResponseInfo request(FullHttpRequest request) {
+            public ResponseInfo request(FullHttpRequest request, Map<String, String> params) {
                 List<Client> clients = ProxyConfig.getInstance().getClients();
                 for (Client client : clients) {
                     Channel channel = ProxyChannelManager.getCmdChannel(client.getClientKey());
@@ -97,22 +96,22 @@ public class RouteConfig {
         ApiRoute.addRoute("/config/update", new RequestHandler() {
 
             @Override
-            public ResponseInfo request(FullHttpRequest request) {
-                byte[] buf = new byte[request.content().readableBytes()];
-                request.content().readBytes(buf);
-                String config = new String(buf, Charset.forName("UTF-8"));
-                List<Client> clients = JsonUtil.json2object(config, new TypeToken<List<Client>>() {
-                });
-                if (clients == null) {
-                    return ResponseInfo.build(ResponseInfo.CODE_INVILID_PARAMS, "Error json config");
-                }
-
-                try {
-                    ProxyConfig.getInstance().update(config);
-                } catch (Exception ex) {
-                    logger.error("config update error", ex);
-                    return ResponseInfo.build(ResponseInfo.CODE_INVILID_PARAMS, ex.getMessage());
-                }
+            public ResponseInfo request(FullHttpRequest request, Map<String, String> params) {
+//                byte[] buf = new byte[request.content().readableBytes()];
+//                request.content().readBytes(buf);
+//                String config = new String(buf, Charset.forName("UTF-8"));
+//                List<Client> clients = JsonUtil.json2object(config, new TypeToken<List<Client>>() {
+//                });
+//                if (clients == null) {
+//                    return ResponseInfo.build(ResponseInfo.CODE_INVILID_PARAMS, "Error json config");
+//                }
+//
+//                try {
+//                    ProxyConfig.getInstance().update(config);
+//                } catch (Exception ex) {
+//                    logger.error("config update error", ex);
+//                    return ResponseInfo.build(ResponseInfo.CODE_INVILID_PARAMS, ex.getMessage());
+//                }
 
                 return ResponseInfo.build(ResponseInfo.CODE_OK, "success");
             }
@@ -121,7 +120,7 @@ public class RouteConfig {
         ApiRoute.addRoute("/login", new RequestHandler() {
 
             @Override
-            public ResponseInfo request(FullHttpRequest request) {
+            public ResponseInfo request(FullHttpRequest request, Map<String, String> params) {
                 byte[] buf = new byte[request.content().readableBytes()];
                 request.content().readBytes(buf);
                 String config = new String(buf);
@@ -149,7 +148,7 @@ public class RouteConfig {
         ApiRoute.addRoute("/logout", new RequestHandler() {
 
             @Override
-            public ResponseInfo request(FullHttpRequest request) {
+            public ResponseInfo request(FullHttpRequest request, Map<String, String> params) {
                 token = null;
                 return ResponseInfo.build(ResponseInfo.CODE_OK, "success");
             }
@@ -158,7 +157,7 @@ public class RouteConfig {
         ApiRoute.addRoute("/metrics/get", new RequestHandler() {
 
             @Override
-            public ResponseInfo request(FullHttpRequest request) {
+            public ResponseInfo request(FullHttpRequest request, Map<String, String> params) {
                 return ResponseInfo.build(MetricsCollector.getAllMetrics());
             }
         });
@@ -166,8 +165,35 @@ public class RouteConfig {
         ApiRoute.addRoute("/metrics/getandreset", new RequestHandler() {
 
             @Override
-            public ResponseInfo request(FullHttpRequest request) {
+            public ResponseInfo request(FullHttpRequest request, Map<String, String> params) {
                 return ResponseInfo.build(MetricsCollector.getAndResetAllMetrics());
+            }
+        });
+
+        // 获取配置详细信息
+        ApiRoute.addRoute("/api/create/peer", new RequestHandler() {
+
+            @Override
+            public ResponseInfo request(FullHttpRequest request, Map<String, String> params) {
+                byte[] buf = new byte[request.content().readableBytes()];
+                request.content().readBytes(buf);
+                String config = new String(buf);
+                Map<String, String> info = JsonUtil.json2object(config, new TypeToken<Map<String, String>>() {
+                });
+                System.out.println("info:" + info);
+                Client client = ProxyConfig.getInstance().add(
+                        info.get("sig"),
+                        info.get("client_name"),
+                        info.get("lan"),
+                        info.get("port_name"),
+                        Integer.parseInt(info.get("port")));
+                if (client != null) {
+                    client.setServerIp(params.get("server_ip"));
+                    client.setClientIp(params.get("client_ip"));
+                    return ResponseInfo.build(client);
+                }
+                return ResponseInfo.build(ResponseInfo.CODE_INVILID_PARAMS, "a");
+
             }
         });
     }

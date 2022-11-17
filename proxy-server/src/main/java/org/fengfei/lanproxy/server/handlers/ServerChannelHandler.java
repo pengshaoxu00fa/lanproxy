@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.fengfei.lanproxy.protocol.Constants;
 import org.fengfei.lanproxy.protocol.ProxyMessage;
+import org.fengfei.lanproxy.server.ChannelServerUtils;
 import org.fengfei.lanproxy.server.ProxyChannelManager;
 import org.fengfei.lanproxy.server.config.ProxyConfig;
 import org.slf4j.Logger;
@@ -147,7 +148,9 @@ public class ServerChannelHandler extends SimpleChannelInboundHandler<ProxyMessa
         }
 
         logger.info("set port => channel, {}, {}, {}", clientKey, ports, ctx.channel());
+        ctx.channel().attr(Constants.CLIENT_KEY).set(clientKey);
         ProxyChannelManager.addCmdChannel(ports, clientKey, ctx.channel());
+
     }
 
     @Override
@@ -174,10 +177,11 @@ public class ServerChannelHandler extends SimpleChannelInboundHandler<ProxyMessa
             }
 
             // 数据发送完成后再关闭连接，解决http1.0数据传输问题
-            userChannel.writeAndFlush(Unpooled.EMPTY_BUFFER).addListener(ChannelFutureListener.CLOSE);
-            userChannel.close();
+            ChannelServerUtils.closeOnFlush(userChannel);
         } else {
             ProxyChannelManager.removeCmdChannel(ctx.channel());
+            String clientKey = ctx.channel().attr(Constants.CLIENT_KEY).get();
+            ProxyConfig.getInstance().removeClient(clientKey);
         }
 
         super.channelInactive(ctx);

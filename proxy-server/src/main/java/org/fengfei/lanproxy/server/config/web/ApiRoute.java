@@ -63,7 +63,7 @@ public class ApiRoute {
      * @param request
      * @return
      */
-    public static ResponseInfo run(FullHttpRequest request) {
+    public static ResponseInfo run(FullHttpRequest request, Map<String, String> params) {
         try {
 
             // 拦截器中如果不能通过以异常的方式进行反馈
@@ -75,7 +75,7 @@ public class ApiRoute {
             RequestHandler handler = routes.get(uri.getPath());
             ResponseInfo responseInfo = null;
             if (handler != null) {
-                responseInfo = handler.request(request);
+                responseInfo = handler.request(request, params);
             } else {
                 responseInfo = ResponseInfo.build(ResponseInfo.CODE_API_NOT_FOUND, "api not found");
             }
