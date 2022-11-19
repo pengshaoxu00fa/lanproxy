@@ -49,7 +49,7 @@
             <th class="th-client-name"><%:=$.i18n.prop('client.name')%></th>
             <th class="th-client-key"><%:=$.i18n.prop('client.key')%></th>
             <th class="th-status"><%:=$.i18n.prop('client.status')%></th>
-            <th class="th-client-key"><%:=$.i18n.prop('client.out.address')%></th>
+            <th class="th-client-key"><%:=$.i18n.prop('client.out.port')%></th>
             <th class="th-status"><%:=$.i18n.prop('client.ip')%></th>
         </tr>
     </thead>
@@ -66,7 +66,7 @@
                 <% }%>
             </td>
 
-            <td><%:=(data[i].serverIp + ":" + data[i].proxyMappings[0].inetPort)%></td>
+            <td><%:=data[i].proxyMappings[0].inetPort%></td>
             <td><%:=data[i].clientIp%></td>
 
         </tr>
