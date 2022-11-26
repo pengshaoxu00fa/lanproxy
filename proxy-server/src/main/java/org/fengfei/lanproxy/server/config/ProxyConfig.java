@@ -42,6 +42,12 @@ public class ProxyConfig implements Serializable {
     /** 配置服务管理员密码 */
     private String configAdminPassword;
 
+    private String serverList;
+
+    public String getServerList() {
+        return serverList;
+    }
+
     /** 代理客户端，支持多个客户端 */
     private ConcurrentHashMap<String ,Client> clients = new ConcurrentHashMap<>();
 
@@ -62,7 +68,7 @@ public class ProxyConfig implements Serializable {
    private static int portStart = 9999;
 
     private ProxyConfig() {
-
+        this.serverList = Config.getInstance().getStringValue("server.list");
         // 代理服务器主机和端口配置初始化
         this.serverPort = Config.getInstance().getIntValue("server.port");
         this.serverBind = Config.getInstance().getStringValue("server.bind", "0.0.0.0");
@@ -166,11 +172,11 @@ public class ProxyConfig implements Serializable {
         client.name = clientName;
         List<ClientProxyMapping> mappings = new ArrayList<>();
         ClientProxyMapping mapping = new ClientProxyMapping();
-        mapping.lan = lan;
-        mapping.name = portName;
+        mapping.lan = "127.0.0.1:" + lan;
+        mapping.name = "portName";
         mappings.add(mapping);
         client.setProxyMappings(mappings);
-
+        //System.out.println("port_start=" + port);
         //服务端端口开始启动监听
         if (port <= 0) {
             port = new PortFounder().findPort();
@@ -191,7 +197,7 @@ public class ProxyConfig implements Serializable {
             }
         }
 
-        System.out.println("port=" + port);
+        //System.out.println("port=" + port);
 
         if (!isSuccess) {
             return null;

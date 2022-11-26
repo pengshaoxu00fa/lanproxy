@@ -22,9 +22,20 @@ public class ResponseInfo implements Serializable {
 
     private Object data;
 
+    private Extra extra;
+
+    public void setExtra(Extra extra) {
+        this.extra = extra;
+    }
+
+    public Extra getExtra() {
+        return extra;
+    }
+
     public static ResponseInfo build(int code, String message, Object data) {
         return new ResponseInfo(code, message, data);
     }
+
 
     public static ResponseInfo build(int code, String message) {
         return new ResponseInfo(code, message);

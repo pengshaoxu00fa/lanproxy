@@ -1,5 +1,6 @@
 package org.fengfei.lanproxy.server.config.web.routes;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -8,10 +9,7 @@ import org.fengfei.lanproxy.common.JsonUtil;
 import org.fengfei.lanproxy.server.ProxyChannelManager;
 import org.fengfei.lanproxy.server.config.ProxyConfig;
 import org.fengfei.lanproxy.server.config.ProxyConfig.Client;
-import org.fengfei.lanproxy.server.config.web.ApiRoute;
-import org.fengfei.lanproxy.server.config.web.RequestHandler;
-import org.fengfei.lanproxy.server.config.web.RequestMiddleware;
-import org.fengfei.lanproxy.server.config.web.ResponseInfo;
+import org.fengfei.lanproxy.server.config.web.*;
 import org.fengfei.lanproxy.server.config.web.exception.ContextException;
 import org.fengfei.lanproxy.server.metrics.MetricsCollector;
 import org.slf4j.Logger;
@@ -37,6 +35,7 @@ public class RouteConfig {
 
     /** 管理员不能同时在多个地方登录 */
     private static String token;
+
 
     public static void init() {
 
@@ -66,7 +65,10 @@ public class RouteConfig {
                     }
                 }
 
-                if (!request.getUri().equals("/login") && !request.getUri().equals("/api/create/peer") && !authenticated) {
+                if (!request.getUri().equals("/login") &&
+                        !request.getUri().equals("/api/create/peer") &&
+                        !request.getUri().equals("/api/list/server") &&
+                        !authenticated) {
                     throw new ContextException(ResponseInfo.CODE_UNAUTHORIZED);
                 }
 
@@ -88,7 +90,43 @@ public class RouteConfig {
                         client.setStatus(0);// offline
                     }
                 }
-                return ResponseInfo.build(ProxyConfig.getInstance().getClients());
+                ResponseInfo info = ResponseInfo.build(ProxyConfig.getInstance().getClients());
+                return info;
+            }
+        });
+
+        // 获取配置详细信息
+        ApiRoute.addRoute("/search", new RequestHandler() {
+
+            @Override
+            public ResponseInfo request(FullHttpRequest request, Map<String, String> params) {
+                byte[] buf = new byte[request.content().readableBytes()];
+                request.content().readBytes(buf);
+                String inputParams = new String(buf);
+                Map<String, String> paramsMaps = JsonUtil.json2object(inputParams, new TypeToken<Map<String, String>>() {
+                });
+
+                String key = paramsMaps.get("key");
+                List<Client> list = new ArrayList<>();
+                System.out.println(key);
+
+                List<Client> clients = ProxyConfig.getInstance().getClients();
+                for (Client client : clients) {
+                    Channel channel = ProxyChannelManager.getCmdChannel(client.getClientKey());
+                    if (channel != null) {
+                        client.setStatus(1);// online
+                    } else {
+                        client.setStatus(0);// offline
+                    }
+                    if (client.getClientIp() == null) {
+                        client.setClientIp("");
+                    }
+                    if (client.getName().contains(key) || client.getClientIp().contains(key)) {
+                        list.add(client);
+                    }
+                }
+                ResponseInfo info = ResponseInfo.build(list);
+                return info;
             }
         });
 
@@ -180,7 +218,6 @@ public class RouteConfig {
                 String config = new String(buf);
                 Map<String, String> info = JsonUtil.json2object(config, new TypeToken<Map<String, String>>() {
                 });
-                System.out.println("info:" + info);
                 Client client = ProxyConfig.getInstance().add(
                         info.get("sig"),
                         info.get("client_name"),
@@ -192,10 +229,20 @@ public class RouteConfig {
                     client.setClientIp(params.get("client_ip"));
                     return ResponseInfo.build(client);
                 }
-                return ResponseInfo.build(ResponseInfo.CODE_INVILID_PARAMS, "a");
+                return ResponseInfo.build(ResponseInfo.CODE_INVILID_PARAMS, "error");
 
             }
         });
+
+        // 获取配置详细信息
+        ApiRoute.addRoute("/api/list/server", new RequestHandler() {
+
+            @Override
+            public ResponseInfo request(FullHttpRequest request, Map<String, String> params) {
+                return ResponseInfo.build(ProxyConfig.getInstance().getServerList());
+            }
+        });
+
     }
 
 }
