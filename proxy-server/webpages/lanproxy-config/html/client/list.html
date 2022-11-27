@@ -5,7 +5,6 @@
 	<div class="main-content"></div>
 </div>
 
-
 <script id="client-tpl" type="text/html">
 <div class="layui-form-item">
     <div class="layui-input-inline">
@@ -18,9 +17,12 @@
         <tr>
             <th class="th-client-name"><%:=$.i18n.prop('client.name')%></th>
             <th class="th-client-key"><%:=$.i18n.prop('client.key')%></th>
+            <th class="th-status"><%:=$.i18n.prop('client.code')%></th>
             <th class="th-status"><%:=$.i18n.prop('client.status')%></th>
             <th class="th-client-key"><%:=$.i18n.prop('client.out.port')%></th>
             <th class="th-status"><%:=$.i18n.prop('client.ip')%></th>
+            <th class="th-status"><%:=$.i18n.prop('client.out.remark')%></th>
+            <th class="th-status"><%:=$.i18n.prop('client.update.remark')%></th>
         </tr>
     </thead>
     <tbody>
@@ -28,6 +30,7 @@
         <tr>
             <td><%:=data[i].name%></td>
             <td><%:=data[i].clientKey%></td>
+            <td><%:=data[i].inputCode%></td>
             <td>
                 <% if(data[i].status == 1){ %>
                 <span class="layui-badge layui-bg-green"><%:=$.i18n.prop('client.status.online')%></span>
@@ -38,17 +41,19 @@
 
             <td><%:=data[i].proxyMappings[0].inetPort%></td>
             <td><%:=data[i].clientIp%></td>
-
+            <td><%:=data[i].remark%></td>
+            <td> <a class="layui-btn layui-btn-mini mapping-edit" onclick="showRemark('<%:=data[i].clientKey%>','<%:=data[i].remark%>')"><%:=$.i18n.prop('client.update.edit')%></a></td>
         </tr>
     <%}%>
     </tbody>
 </table>
+
 <script>
-    $(".layui-this.detail-page").html($.i18n.prop('client.list'));
+    $(".layui-this.detail-page").html($.i18n.prop('client.status.online.list'));
 	window.clientList = [];
     $(".search").click(function() {
         var searchKey = $("input[name='searchKey']").val();
-        api_invoke("/search", {key:searchKey}, function(data) {
+        api_invoke("/search/on", {key:searchKey}, function(data) {
             if (data.code == 20000) {
                 clientList = data.data;
 			    var html = template($("#client-tpl").html(), data);
@@ -63,8 +68,7 @@
 </script>
 
 <script>
-
-	api_invoke("/config/detail", {}, function(data) {
+	api_invoke("/config/detail/on", {}, function(data) {
 		if (data.code == 20000) {
 			clientList = data.data;
 			var html = template($("#client-tpl").html(), data);
@@ -100,6 +104,20 @@
 	});
 
 
+   function showRemark(sig, def) {
+        var input = prompt("备注", def);
+        if (input.length > 300) {
+            alert("输入太多了");
+            return;
+        }
+        api_invoke("/config/detail/remark", {sig:sig, remark:input}, function(data) {
+		if (data.code == 20000) {
+			load_page("html/client/list.html");
+		} else {
+			alert(data.message);
+		}
+	});
+   }
 </script>
 
 

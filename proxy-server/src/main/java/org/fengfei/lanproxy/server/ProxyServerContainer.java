@@ -100,7 +100,6 @@ public class ProxyServerContainer implements Container, ProxyConfig.OnUserStartL
                 ch.pipeline().addLast(new UserChannelHandler());
             }
         });
-
         try {
             Channel channel = bootstrap.bind(port).syncUninterruptibly().channel();
             channelMap.put(port, channel);
@@ -124,6 +123,15 @@ public class ProxyServerContainer implements Container, ProxyConfig.OnUserStartL
     @Override
     public boolean onUserStart(int port, String clientSig) {
         return startUserPort(port);
+    }
+
+    @Override
+    public boolean onUserStop(int port, String clientSig) {
+        if (channelMap != null) {
+            Channel channel = channelMap.get(port);
+            ChannelServerUtils.closeOnFlush(channel);
+        }
+        return true;
     }
 
     @Override

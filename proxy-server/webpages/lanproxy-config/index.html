@@ -63,7 +63,7 @@
                         location.href = "/";
                     } else {
                         layer.alert(XMLHttpRequest.responseJSON.message);
-                        api_invoke("/config/detail", {}, function(data) {
+                        api_invoke("/config/detail/on", {}, function(data) {
                             clientList = data.data;
                         });
                     }
@@ -114,7 +114,7 @@
 
         });
         function update_menu() {
-            api_invoke("/config/detail", {}, function(data) {
+            api_invoke("/config/detail/on", {}, function(data) {
                 if (data.code == 20000) {
                     clientList = data.data;
                     var html = template($("#menu-tpl").html(), {
@@ -125,8 +125,8 @@
                         var element = layui.element;
                     });
                     $(".client-list").html($.i18n.prop('menu.client.list'));
-                    $(".client-list-sub").html($.i18n.prop('menu.client.list'));
-                    $(".client-add").html($.i18n.prop('menu.client.add'));
+                    $(".client-list-sub").html($.i18n.prop('menu.client.on.list'));
+                    $(".client-add").html($.i18n.prop('menu.client.off.list'));
                     $(".client-config").html($.i18n.prop('menu.client.config'));
                     $(".statistics").html($.i18n.prop('menu.client.statistics'));
                     $(".menu-item").click(function() {
@@ -182,7 +182,7 @@
                     <a href="javascript:load_page('html/client/list.html');" class="client-list-sub"></a>
                 </dd>
                 <dd>
-                    <a href="javascript:load_page('html/client/add.html');" class="client-add"></a>
+                    <a href="javascript:load_page('html/client/list-off.html');" class="client-add"></a>
                 </dd>
             </dl>
         </li>

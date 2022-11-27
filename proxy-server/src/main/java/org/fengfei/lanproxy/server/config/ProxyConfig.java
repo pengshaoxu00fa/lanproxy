@@ -8,6 +8,7 @@ import io.netty.channel.Channel;
 import org.fengfei.lanproxy.common.Config;
 import org.fengfei.lanproxy.server.ProxyChannelManager;
 import org.fengfei.lanproxy.server.config.web.PortFounder;
+import org.fengfei.lanproxy.server.save.RedisUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -151,7 +152,13 @@ public class ProxyConfig implements Serializable {
         Collections.sort(list, new Comparator<Client>() {
             @Override
             public int compare(Client o1, Client o2) {
-                return (int)(o1.createTime - o2.createTime);
+                if (o1.lastActivityTime > o2.lastActivityTime) {
+                    return 1;
+                } else if (o1.lastActivityTime == o2.lastActivityTime) {
+                    return 0;
+                } else {
+                    return -1;
+                }
             }
         });
         return list;
@@ -197,8 +204,6 @@ public class ProxyConfig implements Serializable {
             }
         }
 
-        //System.out.println("port=" + port);
-
         if (!isSuccess) {
             return null;
         }
@@ -228,7 +233,28 @@ public class ProxyConfig implements Serializable {
     }
 
     public synchronized void removeClient(String clientSig) {
+        Client client = clients.get(clientSig);
         clients.remove(clientSig);
+        if (client != null &&
+                client.getProxyMappings() != null &&
+                client.getProxyMappings().size() > 0) {
+            ClientProxyMapping mapping = client.getProxyMappings().get(0);
+            if (mapping != null) {
+                onUserStartListener.onUserStop(mapping.getInetPort(), clientSig);
+            }
+        }
+    }
+
+    public void updateRemark(String clientSig, String remark) {
+        Client client = clients.get(clientSig);
+        if (client != null) {
+            client.setRemark(remark);
+        }
+        client = RedisUtils.getClient(clientSig);
+        if (client != null) {
+            client.setRemark(remark);
+            RedisUtils.putClient(clientSig, client);
+        }
     }
 
 
@@ -294,7 +320,11 @@ public class ProxyConfig implements Serializable {
 
         private String serverIp;
 
-        private long createTime;
+        private String inputCode;
+
+        private long lastActivityTime;
+
+        private String remark = "";
 
         /** 客户端备注名称 */
         private String name;
@@ -355,6 +385,39 @@ public class ProxyConfig implements Serializable {
             this.status = status;
         }
 
+        public long getLastActivityTime() {
+            return lastActivityTime;
+        }
+
+        public void setLastActivityTime(long lastActivityTime) {
+            this.lastActivityTime = lastActivityTime;
+        }
+
+        public String getRemark() {
+            return remark;
+        }
+
+        public void setRemark(String remark) {
+            this.remark = remark;
+        }
+
+        public String getInputCode() {
+            return inputCode;
+        }
+
+        public void setInputCode(String inputCode) {
+            this.inputCode = inputCode;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj != null && obj instanceof Client) {
+                if (clientKey != null && clientKey.equals(((Client) obj).getClientKey())) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     /**
@@ -402,6 +465,8 @@ public class ProxyConfig implements Serializable {
 
     public interface OnUserStartListener {
         public boolean onUserStart(int port, String clientSig);
+
+        public boolean onUserStop(int port, String clientSig);
     }
 
     public interface OnRemoveChannelListener{

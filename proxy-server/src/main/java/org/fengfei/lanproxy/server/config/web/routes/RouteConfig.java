@@ -12,6 +12,7 @@ import org.fengfei.lanproxy.server.config.ProxyConfig.Client;
 import org.fengfei.lanproxy.server.config.web.*;
 import org.fengfei.lanproxy.server.config.web.exception.ContextException;
 import org.fengfei.lanproxy.server.metrics.MetricsCollector;
+import org.fengfei.lanproxy.server.save.RedisUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,7 +35,7 @@ public class RouteConfig {
     private static Logger logger = LoggerFactory.getLogger(RouteConfig.class);
 
     /** 管理员不能同时在多个地方登录 */
-    private static String token;
+    private static List<String> tokens = new ArrayList<>();
 
 
     public static void init() {
@@ -50,7 +51,7 @@ public class RouteConfig {
                     for (String cookie : cookies) {
                         String[] cookieArr = cookie.split("=");
                         if (AUTH_COOKIE_KEY.equals(cookieArr[0].trim())) {
-                            if (cookieArr.length == 2 && cookieArr[1].equals(token)) {
+                            if (cookieArr.length == 2 && tokens.contains(cookieArr[1])) {
                                 authenticated = true;
                             }
                         }
@@ -77,7 +78,7 @@ public class RouteConfig {
         });
 
         // 获取配置详细信息
-        ApiRoute.addRoute("/config/detail", new RequestHandler() {
+        ApiRoute.addRoute("/config/detail/on", new RequestHandler() {
 
             @Override
             public ResponseInfo request(FullHttpRequest request, Map<String, String> params) {
@@ -96,7 +97,7 @@ public class RouteConfig {
         });
 
         // 获取配置详细信息
-        ApiRoute.addRoute("/search", new RequestHandler() {
+        ApiRoute.addRoute("/search/on", new RequestHandler() {
 
             @Override
             public ResponseInfo request(FullHttpRequest request, Map<String, String> params) {
@@ -108,10 +109,12 @@ public class RouteConfig {
 
                 String key = paramsMaps.get("key");
                 List<Client> list = new ArrayList<>();
-                System.out.println(key);
 
                 List<Client> clients = ProxyConfig.getInstance().getClients();
                 for (Client client : clients) {
+                    if(client == null) {
+                        continue;
+                    }
                     Channel channel = ProxyChannelManager.getCmdChannel(client.getClientKey());
                     if (channel != null) {
                         client.setStatus(1);// online
@@ -121,12 +124,101 @@ public class RouteConfig {
                     if (client.getClientIp() == null) {
                         client.setClientIp("");
                     }
-                    if (client.getName().contains(key) || client.getClientIp().contains(key)) {
+                    if (client.getInputCode() == null) {
+                        client.setInputCode("");
+                    }
+                    if (client.getName().contains(key) ||
+                            client.getClientIp().contains(key) ||
+                            client.getInputCode().contains(key)) {
                         list.add(client);
                     }
                 }
                 ResponseInfo info = ResponseInfo.build(list);
                 return info;
+            }
+        });
+
+
+        // 获取配置详细信息
+        ApiRoute.addRoute("/config/detail/off", new RequestHandler() {
+
+            @Override
+            public ResponseInfo request(FullHttpRequest request, Map<String, String> params) {
+                List<Client> clients = ProxyConfig.getInstance().getClients();
+                List<Client> allClients = RedisUtils.getAllClient();
+                for (Client client : clients) {
+                    if (allClients.contains(client)) {
+                        allClients.remove(client);
+                    }
+                }
+                for (Client client : allClients) {
+                    client.setStatus(0);// offline
+                }
+                ResponseInfo info = ResponseInfo.build(allClients);
+                return info;
+            }
+        });
+
+        // 获取配置详细信息
+        ApiRoute.addRoute("/search/off", new RequestHandler() {
+
+            @Override
+            public ResponseInfo request(FullHttpRequest request, Map<String, String> params) {
+
+                List<Client> list = new ArrayList<>();
+
+                byte[] buf = new byte[request.content().readableBytes()];
+                request.content().readBytes(buf);
+                String inputParams = new String(buf);
+                Map<String, String> paramsMaps = JsonUtil.json2object(inputParams, new TypeToken<Map<String, String>>() {
+                });
+
+                String key = paramsMaps.get("key");
+
+                List<Client> clients = ProxyConfig.getInstance().getClients();
+                List<Client> allClients = RedisUtils.getAllClient();
+                for (Client client : clients) {
+                    if (allClients.contains(client)) {
+                        allClients.remove(client);
+                    }
+                }
+                for (Client client : allClients) {
+                    client.setStatus(0);// offline
+                    if (client.getClientIp() == null) {
+                        client.setClientIp("");
+                    }
+                    if (client.getInputCode() == null) {
+                        client.setInputCode("");
+                    }
+                    if (client.getName().contains(key) ||
+                            client.getClientIp().contains(key) ||
+                            client.getInputCode().contains(key)) {
+                        list.add(client);
+                    }
+                }
+                ResponseInfo info = ResponseInfo.build(list);
+                return info;
+            }
+        });
+
+
+        // 获取配置详细信息
+        ApiRoute.addRoute("/config/detail/remark", new RequestHandler() {
+
+            @Override
+            public ResponseInfo request(FullHttpRequest request, Map<String, String> params) {
+
+                byte[] buf = new byte[request.content().readableBytes()];
+                request.content().readBytes(buf);
+                String inputParams = new String(buf);
+                Map<String, String> paramsMaps = JsonUtil.json2object(inputParams, new TypeToken<Map<String, String>>() {
+                });
+                String sig = paramsMaps.get("sig");
+                String remark = paramsMaps.get("remark");
+
+                ProxyConfig.getInstance().updateRemark(sig, remark);
+
+                return ResponseInfo.build(ResponseInfo.CODE_OK, "success");
             }
         });
 
@@ -175,7 +267,8 @@ public class RouteConfig {
                 }
 
                 if (username.equals(ProxyConfig.getInstance().getConfigAdminUsername()) && password.equals(ProxyConfig.getInstance().getConfigAdminPassword())) {
-                    token = UUID.randomUUID().toString().replace("-", "");
+                    String token = UUID.randomUUID().toString().replace("-", "");
+                    tokens.add(token);
                     return ResponseInfo.build(token);
                 }
 
@@ -187,7 +280,7 @@ public class RouteConfig {
 
             @Override
             public ResponseInfo request(FullHttpRequest request, Map<String, String> params) {
-                token = null;
+                tokens.clear();
                 return ResponseInfo.build(ResponseInfo.CODE_OK, "success");
             }
         });
@@ -227,6 +320,19 @@ public class RouteConfig {
                 if (client != null) {
                     client.setServerIp(params.get("server_ip"));
                     client.setClientIp(params.get("client_ip"));
+                    client.setLastActivityTime(System.currentTimeMillis());
+                    if (info.get("input_code")!= null && info.get("input_code").trim().length() > 0) {
+                        client.setInputCode(info.get("input_code"));
+                    }
+                    Client saveClient = RedisUtils.getClient(client.getClientKey());
+                    if (saveClient != null) {
+                        if (saveClient.getInputCode() != null && saveClient.getInputCode().trim().length() > 0) {
+                            client.setInputCode(saveClient.getInputCode());
+                        }
+                        client.setRemark(saveClient.getRemark());
+                    }
+
+                    RedisUtils.putClient(client.getClientKey(), client);
                     return ResponseInfo.build(client);
                 }
                 return ResponseInfo.build(ResponseInfo.CODE_INVILID_PARAMS, "error");
