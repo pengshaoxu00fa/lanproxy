@@ -1,9 +1,7 @@
 package org.fengfei.lanproxy.server.config.web.routes;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.fengfei.lanproxy.common.JsonUtil;
 import org.fengfei.lanproxy.server.ProxyChannelManager;
@@ -30,20 +28,42 @@ import io.netty.handler.codec.http.HttpHeaders;
  */
 public class RouteConfig {
 
-    protected static final String AUTH_COOKIE_KEY = "token";
+    protected static final String   AUTH_COOKIE_KEY = "token";
 
     private static Logger logger = LoggerFactory.getLogger(RouteConfig.class);
 
     /** 管理员不能同时在多个地方登录 */
-    private static List<String> tokens = new ArrayList<>();
+    //private static List<String> tokens = new ArrayList<>();
+    private static ConcurrentHashMap<String, Session> sessions = new ConcurrentHashMap<>();
 
+    public static Session getSession(String token) {
+        return sessions.get(token);
+    }
 
+    private static boolean isSessionTimeOut(Session session) {
+        return System.currentTimeMillis() - session.getLastActivityTime() > 24 * 60 * 60 * 1000L;
+    }
+
+    private static void clearOutTimeSession() {
+        try {
+            for (Map.Entry<String, Session> entry : sessions.entrySet()) {
+                if (entry.getValue() == null || isSessionTimeOut(entry.getValue())) {
+                    sessions.remove(entry.getKey());
+                    return;
+                }
+            }
+        } catch (Exception e){
+            e.printStackTrace();
+        }
+    }
     public static void init() {
 
         ApiRoute.addMiddleware(new RequestMiddleware() {
 
             @Override
-            public void preRequest(FullHttpRequest request) {
+            public void preRequest(FullHttpRequest request, Map<String, String> params) {
+                clearOutTimeSession();
+
                 String cookieHeader = request.headers().get(HttpHeaders.Names.COOKIE);
                 boolean authenticated = false;
                 if (cookieHeader != null) {
@@ -51,20 +71,25 @@ public class RouteConfig {
                     for (String cookie : cookies) {
                         String[] cookieArr = cookie.split("=");
                         if (AUTH_COOKIE_KEY.equals(cookieArr[0].trim())) {
-                            if (cookieArr.length == 2 && tokens.contains(cookieArr[1])) {
-                                authenticated = true;
+                            if (cookieArr.length == 2 && cookieArr[1] != null && cookieArr[1].length() > 0) {
+                                Session session = sessions.get(cookieArr[1]);
+                                if (session != null && !isSessionTimeOut(session)) {
+                                    session.setLastActivityTime(System.currentTimeMillis());
+                                    params.put(AUTH_COOKIE_KEY, cookieArr[1]);
+                                    authenticated = true;
+                                }
                             }
                         }
                     }
                 }
 
-                String auth = request.headers().get(HttpHeaders.Names.AUTHORIZATION);
-                if (!authenticated && auth != null) {
-                    String[] authArr = auth.split(" ");
-                    if (authArr.length == 2 && authArr[0].equals(ProxyConfig.getInstance().getConfigAdminUsername()) && authArr[1].equals(ProxyConfig.getInstance().getConfigAdminPassword())) {
-                        authenticated = true;
-                    }
-                }
+//                String auth = request.headers().get(HttpHeaders.Names.AUTHORIZATION);
+//                if (!authenticated && auth != null) {
+//                    String[] authArr = auth.split(" ");
+//                    if (authArr.length == 2 && authArr[0].equals(ProxyConfig.getInstance().getConfigAdminUsername()) && authArr[1].equals(ProxyConfig.getInstance().getConfigAdminPassword())) {
+//                        authenticated = true;
+//                    }
+//                }
 
                 if (!request.getUri().equals("/login") &&
                         !request.getUri().equals("/api/create/peer") &&
@@ -268,7 +293,7 @@ public class RouteConfig {
 
                 if (username.equals(ProxyConfig.getInstance().getConfigAdminUsername()) && password.equals(ProxyConfig.getInstance().getConfigAdminPassword())) {
                     String token = UUID.randomUUID().toString().replace("-", "");
-                    tokens.add(token);
+                    sessions.put(token, new Session(token));
                     return ResponseInfo.build(token);
                 }
 
@@ -280,7 +305,7 @@ public class RouteConfig {
 
             @Override
             public ResponseInfo request(FullHttpRequest request, Map<String, String> params) {
-                tokens.clear();
+                sessions.remove(params.get(AUTH_COOKIE_KEY));
                 return ResponseInfo.build(ResponseInfo.CODE_OK, "success");
             }
         });

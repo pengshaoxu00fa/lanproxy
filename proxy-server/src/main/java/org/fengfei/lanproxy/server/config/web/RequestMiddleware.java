@@ -2,6 +2,8 @@ package org.fengfei.lanproxy.server.config.web;
 
 import io.netty.handler.codec.http.FullHttpRequest;
 
+import java.util.Map;
+
 /**
  * 请求拦截器
  *
@@ -15,5 +17,5 @@ public interface RequestMiddleware {
      *
      * @param request
      */
-    void preRequest(FullHttpRequest request);
+    void preRequest(FullHttpRequest request, Map<String, String> params);
 }

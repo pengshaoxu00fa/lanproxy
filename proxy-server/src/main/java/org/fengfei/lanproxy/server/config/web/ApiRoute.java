@@ -68,7 +68,7 @@ public class ApiRoute {
 
             // 拦截器中如果不能通过以异常的方式进行反馈
             for (RequestMiddleware middleware : middlewares) {
-                middleware.preRequest(request);
+                middleware.preRequest(request, params);
             }
 
             URI uri = new URI(request.getUri());
