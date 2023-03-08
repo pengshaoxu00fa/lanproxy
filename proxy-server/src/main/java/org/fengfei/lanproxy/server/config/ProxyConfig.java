@@ -353,6 +353,8 @@ public class ProxyConfig implements Serializable {
 
         private String clientIp;
 
+        private String lastClientIp;
+
         private String serverIp;
 
         private String inputCode;
@@ -378,6 +380,14 @@ public class ProxyConfig implements Serializable {
 
         public void setClientIp(String clientIp) {
             this.clientIp = clientIp;
+        }
+
+        public String getLastClientIp() {
+            return lastClientIp;
+        }
+
+        public void setLastClientIp(String lastClientIp) {
+            this.lastClientIp = lastClientIp;
         }
 
         public String getServerIp() {

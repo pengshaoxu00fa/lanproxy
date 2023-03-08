@@ -366,6 +366,11 @@ public class RouteConfig {
                         if (saveClient.getInputCode() != null && saveClient.getInputCode().trim().length() > 0) {
                             client.setInputCode(saveClient.getInputCode());
                         }
+                        //&& !saveClient.getClientIp().equals(client.getClientIp())
+                        if (saveClient.getClientIp() != null && saveClient.getClientIp().length() != 0 && !saveClient.getClientIp().equals(client.getClientIp())) {
+                            client.setLastClientIp(saveClient.getClientIp());
+                        }
+
                         client.setRemark(saveClient.getRemark());
                     }
 

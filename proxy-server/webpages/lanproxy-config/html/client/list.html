@@ -21,6 +21,7 @@
             <th class="th-status"><%:=$.i18n.prop('client.status')%></th>
             <th class="th-client-key"><%:=$.i18n.prop('client.out.port')%></th>
             <th class="th-status"><%:=$.i18n.prop('client.ip')%></th>
+            <th class="th-status"><%:=$.i18n.prop('client.ip.last')%></th>
             <th class="th-status"><%:=$.i18n.prop('client.out.remark')%></th>
             <th class="th-status"><%:=$.i18n.prop('client.update.remark')%></th>
             <th class="th-status"><%:=$.i18n.prop('client.update.net.type')%></th>
@@ -31,7 +32,7 @@
     <%for(var i = 0; i < data.length; i++) {%>
         <tr>
             <td><%:=data[i].name%></td>
-            <td><%:=data[i].clientKey%></td>
+            <td><%:=data[i].clientKey.substring(0, 6)%></td>
 <!--            <td><%:=data[i].inputCode%></td>-->
             <td>
                 <% if(data[i].status == 1){ %>
@@ -43,6 +44,7 @@
 
             <td><%:=data[i].proxyMappings[0].inetPort%></td>
             <td><%:=data[i].clientIp%></td>
+            <td><%:=data[i].lastClientIp%></td>
             <td><%:=data[i].remark%></td>
             <td> <a class="layui-btn layui-btn-mini mapping-edit" onclick="showRemark('<%:=data[i].clientKey%>','<%:=data[i].remark%>')"><%:=$.i18n.prop('client.update.edit')%></a></td>
             <td><%:=(data[i].netType == null || data[i].netType.length == 0) ? '未知' : data[i].netType%></td>
