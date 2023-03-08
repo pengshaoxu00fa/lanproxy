@@ -9,7 +9,8 @@ import java.util.Arrays;
  *
  */
 public class ProxyMessage {
-
+    /** 服务端到客户端的通知 */
+    public static final byte TYPE_NOTICE = 0x08;
     /** 心跳消息 */
     public static final byte TYPE_HEARTBEAT = 0x07;
 

@@ -6,6 +6,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import io.netty.channel.Channel;
 import org.fengfei.lanproxy.common.Config;
+import org.fengfei.lanproxy.common.JsonUtil;
+import org.fengfei.lanproxy.protocol.ProxyMessage;
 import org.fengfei.lanproxy.server.ProxyChannelManager;
 import org.fengfei.lanproxy.server.config.web.PortFounder;
 import org.fengfei.lanproxy.server.save.RedisUtils;
@@ -257,6 +259,37 @@ public class ProxyConfig implements Serializable {
         }
     }
 
+    public void updateWifState(String clientSig, int closeWifi) {
+        Client client = clients.get(clientSig);
+        if (client != null) {
+            client.setIsCloseWifi(closeWifi);
+        }
+        client = RedisUtils.getClient(clientSig);
+        if (client != null) {
+            client.setIsCloseWifi(closeWifi);
+            RedisUtils.putClient(clientSig, client);
+
+            //发送消息通知
+            final Channel channel = ProxyChannelManager.getCmdChannel(client.getClientKey());
+            if (channel != null && channel.isActive() && client.getIsCloseWifi() == 1) {
+                channel.eventLoop().execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (channel != null && channel.isActive()) {
+                            Map<String, Object> inputParams = new HashMap<>();
+                            inputParams.put("type", "close-wifi");
+                            ProxyMessage message = new ProxyMessage();
+                            message.setType(ProxyMessage.TYPE_NOTICE);
+                            message.setUri(JsonUtil.object2json(inputParams));
+                            channel.writeAndFlush(message);
+                        }
+                    }
+                });
+            }
+        }
+
+    }
+
 
     /**
      * 获取代理客户端对应的代理服务器端口
@@ -316,6 +349,8 @@ public class ProxyConfig implements Serializable {
 
         private static final long serialVersionUID = 1L;
 
+        private String netType;
+
         private String clientIp;
 
         private String serverIp;
@@ -325,6 +360,8 @@ public class ProxyConfig implements Serializable {
         private long lastActivityTime;
 
         private String remark = "";
+
+        private int isCloseWifi;
 
         /** 客户端备注名称 */
         private String name;
@@ -407,6 +444,22 @@ public class ProxyConfig implements Serializable {
 
         public void setInputCode(String inputCode) {
             this.inputCode = inputCode;
+        }
+
+        public int getIsCloseWifi() {
+            return isCloseWifi;
+        }
+
+        public void setIsCloseWifi(int isCloseWifi) {
+            this.isCloseWifi = isCloseWifi;
+        }
+
+        public String getNetType() {
+            return netType;
+        }
+
+        public void setNetType(String netType) {
+            this.netType = netType;
         }
 
         @Override

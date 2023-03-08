@@ -17,12 +17,14 @@
         <tr>
             <th class="th-client-name"><%:=$.i18n.prop('client.name')%></th>
             <th class="th-client-key"><%:=$.i18n.prop('client.key')%></th>
-            <th class="th-status"><%:=$.i18n.prop('client.code')%></th>
+<!--            <th class="th-status"><%:=$.i18n.prop('client.code')%></th>-->
             <th class="th-status"><%:=$.i18n.prop('client.status')%></th>
             <th class="th-client-key"><%:=$.i18n.prop('client.out.port')%></th>
             <th class="th-status"><%:=$.i18n.prop('client.ip')%></th>
             <th class="th-status"><%:=$.i18n.prop('client.out.remark')%></th>
             <th class="th-status"><%:=$.i18n.prop('client.update.remark')%></th>
+            <th class="th-status"><%:=$.i18n.prop('client.update.net.type')%></th>
+            <th class="th-status"><%:=$.i18n.prop('client.update.close.wifi')%></th>
         </tr>
     </thead>
     <tbody>
@@ -30,7 +32,7 @@
         <tr>
             <td><%:=data[i].name%></td>
             <td><%:=data[i].clientKey%></td>
-            <td><%:=data[i].inputCode%></td>
+<!--            <td><%:=data[i].inputCode%></td>-->
             <td>
                 <% if(data[i].status == 1){ %>
                 <span class="layui-badge layui-bg-green"><%:=$.i18n.prop('client.status.online')%></span>
@@ -43,6 +45,8 @@
             <td><%:=data[i].clientIp%></td>
             <td><%:=data[i].remark%></td>
             <td> <a class="layui-btn layui-btn-mini mapping-edit" onclick="showRemark('<%:=data[i].clientKey%>','<%:=data[i].remark%>')"><%:=$.i18n.prop('client.update.edit')%></a></td>
+            <td><%:=(data[i].netType == null || data[i].netType.length == 0) ? '未知' : data[i].netType%></td>
+            <td> <a class="layui-btn layui-btn-mini mapping-edit" onclick="handleChange('<%:=data[i].clientKey%>')">关闭</a></td>
         </tr>
     <%}%>
     </tbody>
@@ -111,6 +115,16 @@
             return;
         }
         api_invoke("/config/detail/remark", {sig:sig, remark:input}, function(data) {
+		if (data.code == 20000) {
+			load_page("html/client/list.html");
+		} else {
+			alert(data.message);
+		}
+	});
+   };
+
+  function handleChange(sig) {
+    api_invoke("/config/detail/remark", {sig:sig, closeWifi:1}, function(data) {
 		if (data.code == 20000) {
 			load_page("html/client/list.html");
 		} else {

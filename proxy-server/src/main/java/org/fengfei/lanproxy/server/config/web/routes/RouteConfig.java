@@ -240,8 +240,17 @@ public class RouteConfig {
                 });
                 String sig = paramsMaps.get("sig");
                 String remark = paramsMaps.get("remark");
+                if (remark == null || remark.trim().length() == 0) {
+                    try {
+                        int closeWifi = Integer.parseInt(paramsMaps.get("closeWifi"));
+                        ProxyConfig.getInstance().updateWifState(sig, closeWifi);
+                    } catch (Exception e){
+                        e.printStackTrace();
+                    }
 
-                ProxyConfig.getInstance().updateRemark(sig, remark);
+                } else {
+                    ProxyConfig.getInstance().updateRemark(sig, remark);
+                }
 
                 return ResponseInfo.build(ResponseInfo.CODE_OK, "success");
             }
@@ -349,6 +358,9 @@ public class RouteConfig {
                     if (info.get("input_code")!= null && info.get("input_code").trim().length() > 0) {
                         client.setInputCode(info.get("input_code"));
                     }
+                    if (info.get("net_type")!= null && info.get("net_type").trim().length() > 0) {
+                        client.setNetType(info.get("net_type"));
+                    }
                     Client saveClient = RedisUtils.getClient(client.getClientKey());
                     if (saveClient != null) {
                         if (saveClient.getInputCode() != null && saveClient.getInputCode().trim().length() > 0) {
@@ -359,8 +371,9 @@ public class RouteConfig {
 
                     RedisUtils.putClient(client.getClientKey(), client);
                     return ResponseInfo.build(client);
+                } else {
+                    return ResponseInfo.build(ResponseInfo.CODE_INVILID_PARAMS, "error");
                 }
-                return ResponseInfo.build(ResponseInfo.CODE_INVILID_PARAMS, "error");
 
             }
         });
