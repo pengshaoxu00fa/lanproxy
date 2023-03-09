@@ -152,9 +152,13 @@ public class RouteConfig {
                     if (client.getInputCode() == null) {
                         client.setInputCode("");
                     }
+                    if (client.getLastClientIp() == null) {
+                        client.setLastClientIp("");
+                    }
                     if (client.getName().contains(key) ||
                             client.getClientIp().contains(key) ||
-                            client.getInputCode().contains(key)) {
+                            client.getInputCode().contains(key) ||
+                            client.getLastClientIp().contains(key)) {
                         list.add(client);
                     }
                 }
