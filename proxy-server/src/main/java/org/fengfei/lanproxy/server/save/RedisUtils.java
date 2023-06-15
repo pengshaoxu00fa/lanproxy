@@ -8,8 +8,8 @@ import redis.clients.jedis.Jedis;
 import java.util.*;
 
 public class RedisUtils {
-    private static String HOST = "45.8.158.93";
-//    private static String HOST = "127.0.0.1";
+//    private static String HOST = "154.39.248.96";
+    private static String HOST = "127.0.0.1";//访问本机redis必须要用127.0.0.1
     public static String prefix_sig = "lan_sig_";
 
     public static Jedis jedis;
@@ -22,7 +22,7 @@ public class RedisUtils {
 
     private static void init() {
         jedis = new Jedis(HOST, 6379);
-        jedis.auth("WER23$#DDSW!@");
+        jedis.auth("IP68ELh:xI_2");
     }
 
     public static void putClient(String sig, ProxyConfig.Client client) {
